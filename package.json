@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/favicon-generator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Generate PNG icons from SVG for iOS and PWA compatibility",
   "type": "module",
   "main": "./src/index.js",
