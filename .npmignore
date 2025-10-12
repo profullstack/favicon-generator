@@ -1,0 +1,58 @@
+# Test files
+test/
+*.test.js
+coverage/
+.nyc_output/
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Configuration files
+.eslintrc*
+eslint.config.js
+.prettierrc
+.prettierignore
+.editorconfig
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+circle.yml
+
+# Documentation source
+docs/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Environment
+.env
+.env.*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Build artifacts (keep dist if needed)
+test/output/
+
+# Lock files (keep package-lock.json if using npm)
+pnpm-lock.yaml
+yarn.lock
+
+# Original script (if keeping for reference)
+generate-icons.js

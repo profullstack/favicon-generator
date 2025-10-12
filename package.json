@@ -1,0 +1,66 @@
+{
+  "name": "@profullstack/favicon-generator",
+  "version": "1.0.0",
+  "description": "Generate PNG icons from SVG for iOS and PWA compatibility",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": {
+      "import": "./src/index.js"
+    }
+  },
+  "bin": {
+    "fav": "./bin/cli.js"
+  },
+  "scripts": {
+    "test": "mocha test/**/*.test.js",
+    "test:watch": "mocha test/**/*.test.js --watch",
+    "test:coverage": "c8 mocha test/**/*.test.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,md}\""
+  },
+  "keywords": [
+    "favicon",
+    "icon",
+    "generator",
+    "svg",
+    "png",
+    "ios",
+    "pwa",
+    "apple-touch-icon"
+  ],
+  "author": "profullstack",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "inquirer": "^10.2.2",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.14.0",
+    "c8": "^10.1.2",
+    "chai": "^5.1.1",
+    "eslint": "^9.14.0",
+    "eslint-config-prettier": "^9.1.0",
+    "mocha": "^10.7.3",
+    "prettier": "^3.3.3"
+  },
+  "files": [
+    "src/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/profullstack/favicon-generator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/profullstack/favicon-generator/issues"
+  },
+  "homepage": "https://github.com/profullstack/favicon-generator#readme"
+}
