@@ -196,6 +196,26 @@ async function main() {
       console.log(`   Favicon sizes: ${results.faviconSizes.length}`);
     }
 
+    // In interactive mode, output the meta tags and manifest to stdout
+    if (Object.keys(cliArgs).length === 0) {
+      console.log('\n📄 HTML Meta Tags (also saved to meta-tags.html):');
+      console.log('─'.repeat(60));
+      const { promises: fs } = await import('fs');
+      const htmlContent = await fs.readFile(results.htmlFile, 'utf-8');
+      console.log(htmlContent);
+      
+      console.log('\n📱 Manifest JSON (also saved to manifest.json):');
+      console.log('─'.repeat(60));
+      const manifestContent = await fs.readFile(results.manifestFile, 'utf-8');
+      console.log(manifestContent);
+      
+      console.log('\n🪟 Browser Config XML (also saved to browserconfig.xml):');
+      console.log('─'.repeat(60));
+      const browserConfigContent = await fs.readFile(results.browserConfigFile, 'utf-8');
+      console.log(browserConfigContent);
+      console.log('─'.repeat(60));
+    }
+
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Error:', error.message);

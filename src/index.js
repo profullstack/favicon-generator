@@ -5,4 +5,14 @@
 
 export { generateIcons, generateCustomIcons } from './generator.js';
 export { DEFAULT_ICON_SIZES, DEFAULT_OPTIONS, BACKGROUNDS } from './constants.js';
-export { fileExists, isSvgFile, ensureDirectory, Logger, validateOptions } from './utils.js';
+export {
+  fileExists,
+  isSvgFile,
+  ensureDirectory,
+  Logger,
+  validateOptions,
+  generateHtmlMetaTags,
+  generateManifestJson,
+  generateBrowserConfig,
+  readPackageJson,
+} from './utils.js';

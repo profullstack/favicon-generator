@@ -2,7 +2,16 @@ import sharp from 'sharp';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { DEFAULT_OPTIONS, BACKGROUNDS } from './constants.js';
-import { fileExists, ensureDirectory, validateOptions, Logger } from './utils.js';
+import {
+  fileExists,
+  ensureDirectory,
+  validateOptions,
+  Logger,
+  generateHtmlMetaTags,
+  generateManifestJson,
+  generateBrowserConfig,
+  readPackageJson,
+} from './utils.js';
 
 /**
  * Generate a single icon from SVG buffer
@@ -127,6 +136,39 @@ export async function generateIcons(userOptions = {}) {
 
       logger.success(`Generated ${faviconFiles.length} additional favicon sizes`);
     }
+
+    // Read package.json for app metadata
+    const packageJson = await readPackageJson();
+    const appName = packageJson?.name || 'Your App Name';
+    const appDescription = packageJson?.description || 'Your app description';
+
+    // Generate and write HTML meta tags file
+    const htmlMetaTags = generateHtmlMetaTags(results, '/icons');
+    const htmlFilePath = path.join(options.outputDir, 'meta-tags.html');
+    await fs.writeFile(htmlFilePath, htmlMetaTags, 'utf-8');
+    results.htmlFile = htmlFilePath;
+    logger.success('Generated meta-tags.html');
+
+    // Generate and write manifest.json file
+    const manifestJson = generateManifestJson(results, {
+      name: appName,
+      description: appDescription,
+      baseUrl: '/icons',
+    });
+    const manifestFilePath = path.join(options.outputDir, 'manifest.json');
+    await fs.writeFile(manifestFilePath, manifestJson, 'utf-8');
+    results.manifestFile = manifestFilePath;
+    logger.success('Generated manifest.json');
+
+    // Generate and write browserconfig.xml file
+    const browserConfig = generateBrowserConfig(results, {
+      tileColor: '#ffffff',
+      baseUrl: '/icons',
+    });
+    const browserConfigPath = path.join(options.outputDir, 'browserconfig.xml');
+    await fs.writeFile(browserConfigPath, browserConfig, 'utf-8');
+    results.browserConfigFile = browserConfigPath;
+    logger.success('Generated browserconfig.xml');
 
     logger.info(`\n🎉 Icon generation complete!`);
     logger.info(`📁 Generated ${results.icons.length} icons in ${options.outputDir}`);

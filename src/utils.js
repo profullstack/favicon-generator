@@ -117,3 +117,182 @@ export function validateOptions(options) {
     throw new Error('compressionLevel must be a number between 0 and 9');
   }
 }
+
+/**
+ * Read and parse package.json from current working directory
+ * @param {string} cwd - Current working directory (default: process.cwd())
+ * @returns {Promise<Object|null>} Parsed package.json or null if not found
+ */
+export async function readPackageJson(cwd = process.cwd()) {
+  try {
+    const packagePath = path.join(cwd, 'package.json');
+    const exists = await fileExists(packagePath);
+    if (!exists) {
+      return null;
+    }
+    const content = await fs.readFile(packagePath, 'utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    return null;
+  }
+}
+
+
+/**
+ * Generate HTML meta tags for icons
+ * @param {Object} results - Generation results from generateIcons
+ * @param {string} baseUrl - Base URL for icon paths (default: '/icons')
+ * @returns {string} HTML meta tags
+ */
+export function generateHtmlMetaTags(results, baseUrl = '/icons') {
+  const lines = [];
+  
+  lines.push('<!-- Favicon -->');
+  lines.push('<link rel="icon" type="image/svg+xml" href="/favicon.svg" />');
+  
+  // Add favicon sizes
+  if (results.faviconSizes?.length > 0) {
+    for (const { size } of results.faviconSizes.sort((a, b) => b.size - a.size)) {
+      lines.push(`<link rel="icon" type="image/png" sizes="${size}x${size}" href="${baseUrl}/favicon-${size}.png" />`);
+    }
+  }
+  
+  lines.push('');
+  lines.push('<!-- Apple Touch Icons (iOS) -->');
+  
+  // Add Apple Touch Icons
+  const appleIcons = results.icons
+    .filter(({ name }) => name.startsWith('apple-touch-icon'))
+    .sort((a, b) => b.size - a.size);
+  
+  for (const { size, name } of appleIcons) {
+    lines.push(`<link rel="apple-touch-icon" sizes="${size}x${size}" href="${baseUrl}/${name}" />`);
+  }
+  
+  lines.push('');
+  lines.push('<!-- Web App Manifest (PWA) -->');
+  lines.push('<link rel="manifest" href="/manifest.json" />');
+  
+  lines.push('');
+  lines.push('<!-- Theme Color (for browser chrome) -->');
+  lines.push('<meta name="theme-color" content="#ffffff" />');
+  
+  lines.push('');
+  lines.push('<!-- iOS Web App -->');
+  lines.push('<meta name="apple-mobile-web-app-capable" content="yes" />');
+  lines.push('<meta name="apple-mobile-web-app-status-bar-style" content="default" />');
+  lines.push('<meta name="apple-mobile-web-app-title" content="Your App" />');
+  
+  lines.push('');
+  lines.push('<!-- Android -->');
+  lines.push('<meta name="mobile-web-app-capable" content="yes" />');
+  
+  lines.push('');
+  lines.push('<!-- Windows -->');
+  lines.push('<meta name="msapplication-TileColor" content="#ffffff" />');
+  lines.push('<meta name="msapplication-config" content="/browserconfig.xml" />');
+  
+  // Find 144x144 icon for Windows tile
+  const tile144 = results.icons.find(({ size }) => size === 144);
+  if (tile144) {
+    lines.push(`<meta name="msapplication-TileImage" content="${baseUrl}/${tile144.name}" />`);
+  }
+  
+  return lines.join('\n');
+}
+
+/**
+ * Generate manifest.json content for PWA
+ * @param {Object} results - Generation results from generateIcons
+ * @param {Object} options - Manifest options
+ * @returns {string} JSON string for manifest.json
+ */
+export function generateManifestJson(results, options = {}) {
+  const {
+    name = 'Your App Name',
+    shortName = 'App',
+    description = 'Your app description',
+    startUrl = '/',
+    display = 'standalone',
+    backgroundColor = '#ffffff',
+    themeColor = '#ffffff',
+    orientation = 'portrait-primary',
+    baseUrl = '/icons',
+  } = options;
+  
+  // Get PWA icons (192, 256, 384, 512)
+  const pwaIcons = results.icons
+    .filter(({ name }) => name.startsWith('icon-') && !name.includes('apple'))
+    .map(({ size, name }) => ({
+      src: `${baseUrl}/${name}`,
+      sizes: `${size}x${size}`,
+      type: 'image/png',
+      purpose: size === 192 || size === 512 ? 'any maskable' : 'any',
+    }))
+    .sort((a, b) => {
+      const sizeA = parseInt(a.sizes);
+      const sizeB = parseInt(b.sizes);
+      return sizeA - sizeB;
+    });
+  
+  const manifest = {
+    name,
+    short_name: shortName,
+    description,
+    start_url: startUrl,
+    display,
+    background_color: backgroundColor,
+    theme_color: themeColor,
+    orientation,
+    icons: pwaIcons,
+  };
+  
+  return JSON.stringify(manifest, null, 2);
+}
+
+
+/**
+ * Generate browserconfig.xml for Microsoft Windows tiles
+ * @param {Object} results - Generation results from generateIcons
+ * @param {Object} options - Browserconfig options
+ * @returns {string} XML string for browserconfig.xml
+ */
+export function generateBrowserConfig(results, options = {}) {
+  const { tileColor = '#ffffff', baseUrl = '/icons' } = options;
+
+  // Find the 144x144 icon for the tile
+  const tile144 = results.icons.find(({ size }) => size === 144);
+  const tile70 = results.icons.find(({ size }) => size === 70);
+  const tile150 = results.icons.find(({ size }) => size === 150);
+  const tile310x150 = results.icons.find(({ size }) => size === 310 && name.includes('310x150'));
+  const tile310 = results.icons.find(({ size }) => size === 310);
+
+  const lines = [];
+  lines.push('<?xml version="1.0" encoding="utf-8"?>');
+  lines.push('<browserconfig>');
+  lines.push('  <msapplication>');
+  lines.push('    <tile>');
+
+  if (tile70) {
+    lines.push(`      <square70x70logo src="${baseUrl}/${tile70.name}"/>`);
+  }
+  if (tile144) {
+    lines.push(`      <square150x150logo src="${baseUrl}/${tile144.name}"/>`);
+  }
+  if (tile150) {
+    lines.push(`      <square150x150logo src="${baseUrl}/${tile150.name}"/>`);
+  }
+  if (tile310x150) {
+    lines.push(`      <wide310x150logo src="${baseUrl}/${tile310x150.name}"/>`);
+  }
+  if (tile310) {
+    lines.push(`      <square310x310logo src="${baseUrl}/${tile310.name}"/>`);
+  }
+
+  lines.push(`      <TileColor>${tileColor}</TileColor>`);
+  lines.push('    </tile>');
+  lines.push('  </msapplication>');
+  lines.push('</browserconfig>');
+
+  return lines.join('\n');
+}
