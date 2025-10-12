@@ -228,6 +228,77 @@ The package generates the following icon sizes by default:
 
 - 16x16, 32x32
 
+## Using Generated Icons in HTML
+
+After generating your icons, add them to your HTML `<head>` section. See the complete example in [`examples/html-head-template.html`](examples/html-head-template.html).
+
+### Basic HTML Head Setup
+
+```html
+<head>
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png" />
+
+  <!-- Apple Touch Icons (iOS) -->
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180x180.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/icons/apple-touch-icon-152x152.png" />
+  <link rel="apple-touch-icon" sizes="144x144" href="/icons/apple-touch-icon-144x144.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="/icons/apple-touch-icon-120x120.png" />
+  <link rel="apple-touch-icon" sizes="114x114" href="/icons/apple-touch-icon-114x114.png" />
+  <link rel="apple-touch-icon" sizes="76x76" href="/icons/apple-touch-icon-76x76.png" />
+  <link rel="apple-touch-icon" sizes="72x72" href="/icons/apple-touch-icon-72x72.png" />
+  <link rel="apple-touch-icon" sizes="60x60" href="/icons/apple-touch-icon-60x60.png" />
+  <link rel="apple-touch-icon" sizes="57x57" href="/icons/apple-touch-icon-57x57.png" />
+
+  <!-- Web App Manifest (PWA) -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#ffffff" />
+
+  <!-- iOS Web App -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Your App" />
+</head>
+```
+
+### PWA Manifest File
+
+Create a `manifest.json` file for Progressive Web App support. See [`examples/manifest.json`](examples/manifest.json) for a complete example:
+
+```json
+{
+  "name": "Your App Name",
+  "short_name": "App",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff"
+}
+```
+
+### Platform-Specific Notes
+
+- **iOS**: Uses Apple Touch Icons (automatically adds rounded corners)
+- **Android/PWA**: Uses icons from manifest.json
+- **Windows**: Uses msapplication meta tags
+- **Modern Browsers**: Prefer SVG favicon with PNG fallbacks
+
 ## Development
 
 ### Setup
