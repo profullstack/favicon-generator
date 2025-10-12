@@ -119,22 +119,42 @@ export function validateOptions(options) {
 }
 
 /**
- * Read and parse package.json from current working directory
- * @param {string} cwd - Current working directory (default: process.cwd())
+ * Find package.json by searching up the directory tree
+ * @param {string} startDir - Starting directory (default: process.cwd())
  * @returns {Promise<Object|null>} Parsed package.json or null if not found
  */
-export async function readPackageJson(cwd = process.cwd()) {
-  try {
-    const packagePath = path.join(cwd, 'package.json');
+export async function readPackageJson(startDir = process.cwd()) {
+  let currentDir = path.resolve(startDir);
+  const root = path.parse(currentDir).root;
+
+  // Search up the directory tree
+  while (currentDir !== root) {
+    const packagePath = path.join(currentDir, 'package.json');
     const exists = await fileExists(packagePath);
-    if (!exists) {
-      return null;
+    
+    if (exists) {
+      try {
+        const content = await fs.readFile(packagePath, 'utf-8');
+        const pkg = JSON.parse(content);
+        
+        // Skip if this is the favicon-generator's own package.json
+        if (pkg.name === '@profullstack/favicon-generator') {
+          currentDir = path.dirname(currentDir);
+          continue;
+        }
+        
+        return pkg;
+      } catch (error) {
+        // Continue searching if parse fails
+        currentDir = path.dirname(currentDir);
+        continue;
+      }
     }
-    const content = await fs.readFile(packagePath, 'utf-8');
-    return JSON.parse(content);
-  } catch (error) {
-    return null;
+    
+    currentDir = path.dirname(currentDir);
   }
+  
+  return null;
 }
 
 
