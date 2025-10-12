@@ -167,6 +167,100 @@ describe('Generator', () => {
         expect(icon.path).to.match(/test\/output/);
       }
     });
+
+    it('should generate root favicon files when requested', async () => {
+      const options = {
+        svgPath: testSvgPath,
+        outputDir: testOutputDir,
+        iconSizes: [{ size: 64, name: 'icon-64.png' }],
+        generateFavicon: false,
+        generateRootFavicons: true,
+        faviconPngSize: 32,
+        verbose: false,
+      };
+
+      const results = await generateIcons(options);
+
+      expect(results).to.have.property('rootFavicons');
+      expect(results.rootFavicons).to.have.property('png');
+      expect(results.rootFavicons).to.have.property('svg');
+      expect(results.rootFavicons).to.have.property('ico');
+
+      // Verify favicon.png exists
+      const pngExists = await fileExists(results.rootFavicons.png);
+      expect(pngExists).to.be.true;
+      expect(results.rootFavicons.png).to.include('favicon.png');
+
+      // Verify favicon.svg exists
+      const svgExists = await fileExists(results.rootFavicons.svg);
+      expect(svgExists).to.be.true;
+      expect(results.rootFavicons.svg).to.include('favicon.svg');
+
+      // Verify favicon.ico exists
+      const icoExists = await fileExists(results.rootFavicons.ico);
+      expect(icoExists).to.be.true;
+      expect(results.rootFavicons.ico).to.include('favicon.ico');
+    });
+
+    it('should not generate root favicons when disabled', async () => {
+      const options = {
+        svgPath: testSvgPath,
+        outputDir: testOutputDir,
+        iconSizes: [{ size: 64, name: 'icon-64.png' }],
+        generateFavicon: false,
+        generateRootFavicons: false,
+        verbose: false,
+      };
+
+      const results = await generateIcons(options);
+
+      expect(results).to.not.have.property('rootFavicons');
+    });
+
+    it('should generate root favicons with custom PNG size', async () => {
+      const options = {
+        svgPath: testSvgPath,
+        outputDir: testOutputDir,
+        iconSizes: [{ size: 64, name: 'icon-64.png' }],
+        generateFavicon: false,
+        generateRootFavicons: true,
+        faviconPngSize: 48,
+        verbose: false,
+      };
+
+      const results = await generateIcons(options);
+
+      expect(results.rootFavicons).to.have.property('png');
+      const pngExists = await fileExists(results.rootFavicons.png);
+      expect(pngExists).to.be.true;
+
+      // Read the PNG file to verify it was created
+      const pngBuffer = await fs.readFile(results.rootFavicons.png);
+      expect(pngBuffer.length).to.be.greaterThan(0);
+    });
+
+    it('should generate valid ICO file with multiple sizes', async () => {
+      const options = {
+        svgPath: testSvgPath,
+        outputDir: testOutputDir,
+        iconSizes: [{ size: 64, name: 'icon-64.png' }],
+        generateFavicon: false,
+        generateRootFavicons: true,
+        verbose: false,
+      };
+
+      const results = await generateIcons(options);
+
+      // Verify ICO file exists and has content
+      const icoBuffer = await fs.readFile(results.rootFavicons.ico);
+      expect(icoBuffer.length).to.be.greaterThan(0);
+
+      // Verify ICO header (first 4 bytes should be: 0, 0, 1, 0)
+      expect(icoBuffer[0]).to.equal(0); // Reserved
+      expect(icoBuffer[1]).to.equal(0); // Reserved
+      expect(icoBuffer[2]).to.equal(1); // Type (1 = ICO)
+      expect(icoBuffer[3]).to.equal(0); // Type continuation
+    });
   });
 
   describe('generateCustomIcons', () => {

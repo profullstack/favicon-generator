@@ -26,6 +26,8 @@ export const DEFAULT_OPTIONS = {
   iconSizes: DEFAULT_ICON_SIZES,
   generateFavicon: true,
   faviconSizes: [16, 32],
+  generateRootFavicons: true, // Generate favicon.png, favicon.svg, favicon.ico
+  faviconPngSize: 32, // Size for favicon.png
   quality: 95,
   compressionLevel: 9,
   verbose: true,

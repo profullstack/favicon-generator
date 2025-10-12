@@ -125,7 +125,7 @@ export function validateOptions(options) {
  */
 export async function readPackageJson(startDir = process.cwd()) {
   let currentDir = path.resolve(startDir);
-  const root = path.parse(currentDir).root;
+  const {root} = path.parse(currentDir);
 
   // Search up the directory tree
   while (currentDir !== root) {
@@ -144,7 +144,7 @@ export async function readPackageJson(startDir = process.cwd()) {
         }
         
         return pkg;
-      } catch (error) {
+      } catch {
         // Continue searching if parse fails
         currentDir = path.dirname(currentDir);
         continue;
@@ -284,7 +284,7 @@ export function generateBrowserConfig(results, options = {}) {
   const tile144 = results.icons.find(({ size }) => size === 144);
   const tile70 = results.icons.find(({ size }) => size === 70);
   const tile150 = results.icons.find(({ size }) => size === 150);
-  const tile310x150 = results.icons.find(({ size }) => size === 310 && name.includes('310x150'));
+  const tile310x150 = results.icons.find(({ size, name }) => size === 310 && name.includes('310x150'));
   const tile310 = results.icons.find(({ size }) => size === 310);
 
   const lines = [];

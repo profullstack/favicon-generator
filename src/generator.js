@@ -69,6 +69,127 @@ async function generateFaviconSizes(svgBuffer, outputDir, sizes, options) {
 }
 
 /**
+ * Generate root favicon files (favicon.png, favicon.svg, favicon.ico)
+ * @param {Buffer} svgBuffer - SVG file buffer
+ * @param {string} outputDir - Output directory
+ * @param {Object} options - Generation options
+ * @returns {Promise<Object>} Object with paths to generated files
+ */
+async function generateRootFavicons(svgBuffer, outputDir, options) {
+  const { quality, compressionLevel, faviconPngSize } = options;
+  const generatedFiles = {};
+
+  // Generate favicon.png
+  const pngPath = path.join(outputDir, 'favicon.png');
+  await sharp(svgBuffer)
+    .resize(faviconPngSize, faviconPngSize, {
+      fit: 'contain',
+      background: BACKGROUNDS.transparent,
+    })
+    .png({
+      quality,
+      compressionLevel,
+    })
+    .toFile(pngPath);
+  generatedFiles.png = pngPath;
+
+  // Copy SVG as favicon.svg
+  const svgPath = path.join(outputDir, 'favicon.svg');
+  await fs.writeFile(svgPath, svgBuffer);
+  generatedFiles.svg = svgPath;
+
+  // Generate favicon.ico (multi-size ICO with 16x16 and 32x32)
+  const icoPath = path.join(outputDir, 'favicon.ico');
+  const sizes = [16, 32];
+  const pngBuffers = await Promise.all(
+    sizes.map((size) =>
+      sharp(svgBuffer)
+        .resize(size, size, {
+          fit: 'contain',
+          background: BACKGROUNDS.transparent,
+        })
+        .png({
+          quality,
+          compressionLevel,
+        })
+        .toBuffer()
+    )
+  );
+
+  // Create ICO file manually (simple ICO format)
+  const icoBuffer = createIcoBuffer(pngBuffers, sizes);
+  await fs.writeFile(icoPath, icoBuffer);
+  generatedFiles.ico = icoPath;
+
+  return generatedFiles;
+}
+
+/**
+ * Create ICO buffer from PNG buffers
+ * @param {Array<Buffer>} pngBuffers - Array of PNG buffers
+ * @param {Array<number>} sizes - Array of sizes corresponding to PNG buffers
+ * @returns {Buffer} ICO file buffer
+ */
+function createIcoBuffer(pngBuffers, sizes) {
+  // ICO header: 6 bytes
+  const iconCount = pngBuffers.length;
+  const headerSize = 6;
+  const dirEntrySize = 16;
+  const dirSize = headerSize + dirEntrySize * iconCount;
+
+  // Calculate total size
+  let totalSize = dirSize;
+  const imageOffsets = [];
+  for (const buffer of pngBuffers) {
+    imageOffsets.push(totalSize);
+    totalSize += buffer.length;
+  }
+
+  const icoBuffer = Buffer.alloc(totalSize);
+  let offset = 0;
+
+  // Write ICO header
+  icoBuffer.writeUInt16LE(0, offset); // Reserved (must be 0)
+  offset += 2;
+  icoBuffer.writeUInt16LE(1, offset); // Type (1 = ICO)
+  offset += 2;
+  icoBuffer.writeUInt16LE(iconCount, offset); // Number of images
+  offset += 2;
+
+  // Write directory entries
+  for (let i = 0; i < iconCount; i++) {
+    const size = sizes[i];
+    const imageSize = pngBuffers[i].length;
+    const imageOffset = imageOffsets[i];
+
+    icoBuffer.writeUInt8(size === 256 ? 0 : size, offset); // Width (0 means 256)
+    offset += 1;
+    icoBuffer.writeUInt8(size === 256 ? 0 : size, offset); // Height (0 means 256)
+    offset += 1;
+    icoBuffer.writeUInt8(0, offset); // Color palette (0 = no palette)
+    offset += 1;
+    icoBuffer.writeUInt8(0, offset); // Reserved (must be 0)
+    offset += 1;
+    icoBuffer.writeUInt16LE(1, offset); // Color planes (1)
+    offset += 2;
+    icoBuffer.writeUInt16LE(32, offset); // Bits per pixel (32 for PNG)
+    offset += 2;
+    icoBuffer.writeUInt32LE(imageSize, offset); // Image size in bytes
+    offset += 4;
+    icoBuffer.writeUInt32LE(imageOffset, offset); // Image offset
+    offset += 4;
+  }
+
+  // Write image data
+  for (const buffer of pngBuffers) {
+    buffer.copy(icoBuffer, offset);
+    offset += buffer.length;
+  }
+
+  return icoBuffer;
+}
+
+/**
  * Generate PNG icons from SVG
  * @param {Object} userOptions - User-provided options
  * @returns {Promise<Object>} Generation results
@@ -135,6 +256,19 @@ export async function generateIcons(userOptions = {}) {
       }));
 
       logger.success(`Generated ${faviconFiles.length} additional favicon sizes`);
+    }
+
+    // Generate root favicon files if requested
+    if (options.generateRootFavicons) {
+      const rootFavicons = await generateRootFavicons(
+        svgBuffer,
+        options.outputDir,
+        options
+      );
+
+      results.rootFavicons = rootFavicons;
+
+      logger.success('Generated favicon.png, favicon.svg, and favicon.ico');
     }
 
     // Read package.json for app metadata
