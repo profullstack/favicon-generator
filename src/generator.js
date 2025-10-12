@@ -141,6 +141,12 @@ export async function generateIcons(userOptions = {}) {
     const packageJson = await readPackageJson();
     const appName = packageJson?.name || 'Your App Name';
     const appDescription = packageJson?.description || 'Your app description';
+    
+    if (packageJson) {
+      logger.log(`📦 Using package.json: ${appName}`);
+    } else {
+      logger.log('📦 No package.json found, using default values');
+    }
 
     // Generate and write HTML meta tags file
     const htmlMetaTags = generateHtmlMetaTags(results, '/icons');
