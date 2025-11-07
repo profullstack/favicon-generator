@@ -2,12 +2,16 @@
  * Default icon sizes for iOS and PWA compatibility
  */
 export const DEFAULT_ICON_SIZES = [
+  { size: 16, name: 'icon-16x16.png' },
+  { size: 32, name: 'icon-32x32.png' },
+  { size: 48, name: 'icon-48x48.png' },
   { size: 57, name: 'apple-touch-icon-57x57.png' },
   { size: 60, name: 'apple-touch-icon-60x60.png' },
   { size: 72, name: 'apple-touch-icon-72x72.png' },
   { size: 76, name: 'apple-touch-icon-76x76.png' },
   { size: 114, name: 'apple-touch-icon-114x114.png' },
   { size: 120, name: 'apple-touch-icon-120x120.png' },
+  { size: 128, name: 'icon-128x128.png' },
   { size: 144, name: 'apple-touch-icon-144x144.png' },
   { size: 152, name: 'apple-touch-icon-152x152.png' },
   { size: 180, name: 'apple-touch-icon-180x180.png' },
