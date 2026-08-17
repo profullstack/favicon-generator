@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { SUPPORTED_INPUT_EXTENSIONS } from './constants.js';
 
 /**
  * Validate if a file exists
@@ -22,6 +23,46 @@ export async function fileExists(filePath) {
  */
 export function isSvgFile(filePath) {
   return path.extname(filePath).toLowerCase() === '.svg';
+}
+
+/**
+ * Validate if a path is a PNG file
+ * @param {string} filePath - Path to check
+ * @returns {boolean} True if path ends with .png
+ */
+export function isPngFile(filePath) {
+  return path.extname(filePath).toLowerCase() === '.png';
+}
+
+/**
+ * Validate if a path is a supported source image (.svg or .png)
+ * @param {string} filePath - Path to check
+ * @returns {boolean} True if the extension is supported
+ */
+export function isSupportedInputFile(filePath) {
+  return SUPPORTED_INPUT_EXTENSIONS.includes(path.extname(filePath).toLowerCase());
+}
+
+/**
+ * Determine the source format from a file path
+ * @param {string} filePath - Path to check
+ * @returns {'svg'|'png'|null} Format identifier, or null if unsupported
+ */
+export function getInputFormat(filePath) {
+  if (!filePath) return null;
+  if (isSvgFile(filePath)) return 'svg';
+  if (isPngFile(filePath)) return 'png';
+  return null;
+}
+
+/**
+ * Resolve the source path from options, accepting the canonical `inputPath`
+ * or the legacy `svgPath` alias
+ * @param {Object} options - Options object
+ * @returns {string|undefined} Resolved input path
+ */
+export function resolveInputPath(options = {}) {
+  return options.inputPath || options.svgPath;
 }
 
 /**
@@ -80,12 +121,16 @@ export class Logger {
  * @throws {Error} If options are invalid
  */
 export function validateOptions(options) {
-  if (!options.svgPath) {
-    throw new Error('svgPath is required');
+  const inputPath = resolveInputPath(options);
+
+  if (!inputPath) {
+    throw new Error('inputPath is required');
   }
 
-  if (!isSvgFile(options.svgPath)) {
-    throw new Error('svgPath must be an SVG file');
+  if (!isSupportedInputFile(inputPath)) {
+    throw new Error(
+      `inputPath must be an SVG or PNG file (got "${path.extname(inputPath) || inputPath}")`
+    );
   }
 
   if (!options.outputDir) {
@@ -125,24 +170,24 @@ export function validateOptions(options) {
  */
 export async function readPackageJson(startDir = process.cwd()) {
   let currentDir = path.resolve(startDir);
-  const {root} = path.parse(currentDir);
+  const { root } = path.parse(currentDir);
 
   // Search up the directory tree
   while (currentDir !== root) {
     const packagePath = path.join(currentDir, 'package.json');
     const exists = await fileExists(packagePath);
-    
+
     if (exists) {
       try {
         const content = await fs.readFile(packagePath, 'utf-8');
         const pkg = JSON.parse(content);
-        
+
         // Skip if this is the favicon-generator's own package.json
         if (pkg.name === '@profullstack/favicon-generator') {
           currentDir = path.dirname(currentDir);
           continue;
         }
-        
+
         return pkg;
       } catch {
         // Continue searching if parse fails
@@ -150,13 +195,12 @@ export async function readPackageJson(startDir = process.cwd()) {
         continue;
       }
     }
-    
+
     currentDir = path.dirname(currentDir);
   }
-  
+
   return null;
 }
-
 
 /**
  * Generate HTML meta tags for icons
@@ -166,58 +210,67 @@ export async function readPackageJson(startDir = process.cwd()) {
  */
 export function generateHtmlMetaTags(results, baseUrl = '/icons') {
   const lines = [];
-  
+
   lines.push('<!-- Favicon -->');
-  lines.push('<link rel="icon" type="image/svg+xml" href="/favicon.svg" />');
-  
+
+  // Reference the scalable favicon only when the source was vector; a PNG
+  // source produces favicon.png instead.
+  if (results.inputFormat === 'png') {
+    lines.push('<link rel="icon" type="image/png" href="/favicon.png" />');
+  } else {
+    lines.push('<link rel="icon" type="image/svg+xml" href="/favicon.svg" />');
+  }
+
   // Add favicon sizes
   if (results.faviconSizes?.length > 0) {
     for (const { size } of results.faviconSizes.sort((a, b) => b.size - a.size)) {
-      lines.push(`<link rel="icon" type="image/png" sizes="${size}x${size}" href="${baseUrl}/favicon-${size}.png" />`);
+      lines.push(
+        `<link rel="icon" type="image/png" sizes="${size}x${size}" href="${baseUrl}/favicon-${size}.png" />`
+      );
     }
   }
-  
+
   lines.push('');
   lines.push('<!-- Apple Touch Icons (iOS) -->');
-  
+
   // Add Apple Touch Icons
   const appleIcons = results.icons
     .filter(({ name }) => name.startsWith('apple-touch-icon'))
     .sort((a, b) => b.size - a.size);
-  
+
   for (const { size, name } of appleIcons) {
     lines.push(`<link rel="apple-touch-icon" sizes="${size}x${size}" href="${baseUrl}/${name}" />`);
   }
-  
+
   lines.push('');
   lines.push('<!-- Web App Manifest (PWA) -->');
   lines.push('<link rel="manifest" href="/manifest.json" />');
-  
+
   lines.push('');
   lines.push('<!-- Theme Color (for browser chrome) -->');
   lines.push('<meta name="theme-color" content="#ffffff" />');
-  
+
   lines.push('');
   lines.push('<!-- iOS Web App -->');
   lines.push('<meta name="apple-mobile-web-app-capable" content="yes" />');
   lines.push('<meta name="apple-mobile-web-app-status-bar-style" content="default" />');
   lines.push('<meta name="apple-mobile-web-app-title" content="Your App" />');
-  
+
   lines.push('');
   lines.push('<!-- Android -->');
   lines.push('<meta name="mobile-web-app-capable" content="yes" />');
-  
+
   lines.push('');
   lines.push('<!-- Windows -->');
   lines.push('<meta name="msapplication-TileColor" content="#ffffff" />');
   lines.push('<meta name="msapplication-config" content="/browserconfig.xml" />');
-  
+
   // Find 144x144 icon for Windows tile
   const tile144 = results.icons.find(({ size }) => size === 144);
   if (tile144) {
     lines.push(`<meta name="msapplication-TileImage" content="${baseUrl}/${tile144.name}" />`);
   }
-  
+
   return lines.join('\n');
 }
 
@@ -239,7 +292,7 @@ export function generateManifestJson(results, options = {}) {
     orientation = 'portrait-primary',
     baseUrl = '/icons',
   } = options;
-  
+
   // Get PWA icons (192, 256, 384, 512)
   const pwaIcons = results.icons
     .filter(({ name }) => name.startsWith('icon-') && !name.includes('apple'))
@@ -254,7 +307,7 @@ export function generateManifestJson(results, options = {}) {
       const sizeB = parseInt(b.sizes);
       return sizeA - sizeB;
     });
-  
+
   const manifest = {
     name,
     short_name: shortName,
@@ -266,10 +319,9 @@ export function generateManifestJson(results, options = {}) {
     orientation,
     icons: pwaIcons,
   };
-  
+
   return JSON.stringify(manifest, null, 2);
 }
-
 
 /**
  * Generate browserconfig.xml for Microsoft Windows tiles
@@ -284,7 +336,9 @@ export function generateBrowserConfig(results, options = {}) {
   const tile144 = results.icons.find(({ size }) => size === 144);
   const tile70 = results.icons.find(({ size }) => size === 70);
   const tile150 = results.icons.find(({ size }) => size === 150);
-  const tile310x150 = results.icons.find(({ size, name }) => size === 310 && name.includes('310x150'));
+  const tile310x150 = results.icons.find(
+    ({ size, name }) => size === 310 && name.includes('310x150')
+  );
   const tile310 = results.icons.find(({ size }) => size === 310);
 
   const lines = [];

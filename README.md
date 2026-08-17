@@ -1,13 +1,14 @@
 # @profullstack/favicon-generator
 
-Generate PNG icons from SVG for iOS and PWA compatibility. A modern, flexible Node.js tool that converts your SVG favicon into all the icon sizes you need for mobile devices and progressive web apps.
+Generate PNG icons from an SVG **or PNG** source for iOS and PWA compatibility. A modern, flexible Node.js tool that converts your source logo into all the icon sizes you need for mobile devices and progressive web apps.
 
 [![npm version](https://img.shields.io/npm/v/@profullstack/favicon-generator.svg)](https://www.npmjs.com/package/@profullstack/favicon-generator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
 
-- 🎨 Convert SVG to multiple PNG icon sizes
+- 🎨 Convert SVG or PNG source art to multiple PNG icon sizes
+- 🖼️ PNG sources for when you only have raster logo art
 - 📱 iOS Apple Touch Icon support
 - 🌐 PWA icon generation
 - 🖼️ Automatic favicon size generation (16x16, 32x32)
@@ -54,7 +55,7 @@ fav
 
 You'll be prompted for:
 
-- SVG file path
+- Source file path (`.svg` or `.png`)
 - Output directory
 - PNG quality (1-100)
 - Compression level (0-9)
@@ -63,8 +64,11 @@ You'll be prompted for:
 #### Command Line Arguments
 
 ```bash
-# Basic usage
+# Basic usage with an SVG source
 fav -i favicon.svg -o ./icons
+
+# Basic usage with a PNG source
+fav -i logo.png -o ./icons
 
 # With custom quality and compression
 fav -i logo.svg -o ./public/icons -q 90 -c 7
@@ -84,16 +88,16 @@ fav --version
 
 #### CLI Options
 
-| Option          | Alias | Description                   | Default         |
-| --------------- | ----- | ----------------------------- | --------------- |
-| `--input`       | `-i`  | Path to SVG file              | `./favicon.svg` |
-| `--output`      | `-o`  | Output directory              | `./icons`       |
-| `--quality`     | `-q`  | PNG quality (1-100)           | `95`            |
-| `--compression` | `-c`  | Compression level (0-9)       | `9`             |
-| `--no-favicon`  |       | Skip additional favicon sizes | `false`         |
-| `--silent`      |       | Suppress output messages      | `false`         |
-| `--help`        | `-h`  | Show help message             |                 |
-| `--version`     | `-v`  | Show version number           |                 |
+| Option          | Alias | Description                     | Default         |
+| --------------- | ----- | ------------------------------- | --------------- |
+| `--input`       | `-i`  | Path to source `.svg` or `.png` | `./favicon.svg` |
+| `--output`      | `-o`  | Output directory                | `./icons`       |
+| `--quality`     | `-q`  | PNG quality (1-100)             | `95`            |
+| `--compression` | `-c`  | Compression level (0-9)         | `9`             |
+| `--no-favicon`  |       | Skip additional favicon sizes   | `false`         |
+| `--silent`      |       | Suppress output messages        | `false`         |
+| `--help`        | `-h`  | Show help message               |                 |
+| `--version`     | `-v`  | Show version number             |                 |
 
 ### Programmatic Usage (ESM)
 
@@ -103,11 +107,28 @@ fav --version
 import { generateIcons } from '@profullstack/favicon-generator';
 
 const results = await generateIcons({
-  svgPath: './favicon.svg',
+  inputPath: './favicon.svg', // or './logo.png'
   outputDir: './icons',
 });
 
 console.log(`Generated ${results.icons.length} icons`);
+```
+
+#### PNG Source Example
+
+```javascript
+import { generateIcons } from '@profullstack/favicon-generator';
+
+const results = await generateIcons({
+  inputPath: './logo.png',
+  outputDir: './public/icons',
+});
+
+// 'png' for a raster source, 'svg' for a vector one
+console.log(results.inputFormat); // 'png'
+
+// A PNG source has no vector equivalent, so no favicon.svg is written
+console.log(results.rootFavicons); // { png: ..., ico: ... }
 ```
 
 #### Custom Configuration
@@ -116,7 +137,7 @@ console.log(`Generated ${results.icons.length} icons`);
 import { generateIcons } from '@profullstack/favicon-generator';
 
 const results = await generateIcons({
-  svgPath: './logo.svg',
+  inputPath: './logo.svg',
   outputDir: './public/icons',
   quality: 90,
   compressionLevel: 7,
@@ -152,7 +173,7 @@ import { generateIcons, DEFAULT_ICON_SIZES, BACKGROUNDS } from '@profullstack/fa
 
 // Use default icon sizes
 const results = await generateIcons({
-  svgPath: './favicon.svg',
+  inputPath: './favicon.svg',
   outputDir: './icons',
   iconSizes: DEFAULT_ICON_SIZES,
 });
@@ -167,12 +188,13 @@ console.log(BACKGROUNDS.black); // { r: 0, g: 0, b: 0, alpha: 1 }
 
 ### `generateIcons(options)`
 
-Generate PNG icons from an SVG file.
+Generate PNG icons from an SVG or PNG source file.
 
 **Parameters:**
 
 - `options` (Object):
-  - `svgPath` (string, required): Path to the SVG file
+  - `inputPath` (string, required): Path to the source `.svg` or `.png` file
+  - `svgPath` (string, optional): Deprecated alias for `inputPath`, still accepted (and it may point at a `.png`)
   - `outputDir` (string, required): Output directory for generated icons
   - `iconSizes` (Array, optional): Array of `{size, name}` objects. Defaults to `DEFAULT_ICON_SIZES`
   - `quality` (number, optional): PNG quality (1-100). Default: `95`
@@ -193,17 +215,51 @@ Generate PNG icons from an SVG file.
     { size: 16, path: './icons/favicon-16.png' },
     // ...
   ],
-  outputDir: './icons'
+  outputDir: './icons',
+  inputPath: './favicon.svg',
+  inputFormat: 'svg', // 'svg' or 'png'
+  rootFavicons: {
+    png: './icons/favicon.png',
+    svg: './icons/favicon.svg', // omitted for a PNG source
+    ico: './icons/favicon.ico'
+  }
 }
 ```
 
-### `generateCustomIcons(svgPath, outputDir, customSizes, additionalOptions)`
+### Source Format Notes
+
+|                             | SVG source                          | PNG source                             |
+| --------------------------- | ----------------------------------- | -------------------------------------- |
+| Scaling                     | Rasterized losslessly at every size | Resampled; upscaling softens the image |
+| `favicon.svg`               | Written (copy of the source)        | Not written — no vector equivalent     |
+| Primary `<link rel="icon">` | `/favicon.svg` (`image/svg+xml`)    | `/favicon.png` (`image/png`)           |
+| Recommended input           | Any square viewBox                  | Square, at least 512x512               |
+
+A PNG source smaller than the largest requested icon, or one that isn't square,
+logs a warning: icons are still generated (upscaled and padded to fit), but the
+result will be softer than vector art. Supply the highest resolution you have.
+
+### `isSupportedInputFile(filePath)` / `getInputFormat(filePath)`
+
+Helpers for validating a source path before calling `generateIcons`.
+
+```javascript
+import { isSupportedInputFile, getInputFormat } from '@profullstack/favicon-generator';
+
+isSupportedInputFile('logo.png'); // true
+isSupportedInputFile('logo.jpg'); // false
+getInputFormat('logo.png'); // 'png'
+getInputFormat('logo.svg'); // 'svg'
+getInputFormat('logo.jpg'); // null
+```
+
+### `generateCustomIcons(inputPath, outputDir, customSizes, additionalOptions)`
 
 Generate icons with custom sizes.
 
 **Parameters:**
 
-- `svgPath` (string): Path to the SVG file
+- `inputPath` (string): Path to the source `.svg` or `.png` file
 - `outputDir` (string): Output directory
 - `customSizes` (Array): Array of `{size, name}` objects
 - `additionalOptions` (Object, optional): Additional options (quality, compressionLevel, etc.)
@@ -297,7 +353,7 @@ Create a `manifest.json` file for Progressive Web App support. See [`examples/ma
 - **iOS**: Uses Apple Touch Icons (automatically adds rounded corners)
 - **Android/PWA**: Uses icons from manifest.json
 - **Windows**: Uses msapplication meta tags
-- **Modern Browsers**: Prefer SVG favicon with PNG fallbacks
+- **Modern Browsers**: Prefer an SVG favicon with PNG fallbacks; with a PNG source, `favicon.png` plus the sized PNGs cover every browser
 
 ## Development
 

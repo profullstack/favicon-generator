@@ -2,8 +2,8 @@
 
 import inquirer from 'inquirer';
 import { generateIcons } from '../src/index.js';
-import { DEFAULT_OPTIONS } from '../src/constants.js';
-import { fileExists } from '../src/utils.js';
+import { DEFAULT_OPTIONS, DEFAULT_INPUT_CANDIDATES } from '../src/constants.js';
+import { fileExists, isSupportedInputFile } from '../src/utils.js';
 import path from 'path';
 
 /**
@@ -19,7 +19,7 @@ function parseArgs() {
     switch (arg) {
       case '-i':
       case '--input':
-        options.svgPath = args[++i];
+        options.inputPath = args[++i];
         break;
       case '-o':
       case '--output':
@@ -60,13 +60,13 @@ function parseArgs() {
  */
 function showHelp() {
   console.log(`
-🎨 Favicon Generator - Generate PNG icons from SVG
+🎨 Favicon Generator - Generate PNG icons from an SVG or PNG source
 
 Usage:
   fav [options]
 
 Options:
-  -i, --input <path>        Path to SVG file (default: ./favicon.svg)
+  -i, --input <path>        Path to source SVG or PNG (default: ./favicon.svg)
   -o, --output <path>       Output directory (default: ./icons)
   -q, --quality <number>    PNG quality 1-100 (default: 95)
   -c, --compression <num>   Compression level 0-9 (default: 9)
@@ -78,8 +78,13 @@ Options:
 Examples:
   fav
   fav -i logo.svg -o ./public/icons
-  fav --input favicon.svg --output dist/icons --quality 90
+  fav -i logo.png -o ./public/icons
+  fav --input favicon.png --output dist/icons --quality 90
   fav --silent --no-favicon
+
+Notes:
+  A PNG source should be square and at least 512x512, since raster art cannot be
+  upscaled without softening. SVG sources scale losslessly.
 
 Interactive Mode:
   Run 'fav' without arguments to use interactive mode
@@ -104,6 +109,19 @@ function showVersion() {
 }
 
 /**
+ * Pick a sensible default source file by probing the common candidates
+ * @returns {Promise<string>} First existing candidate, or the built-in default
+ */
+async function detectDefaultInput() {
+  for (const candidate of DEFAULT_INPUT_CANDIDATES) {
+    if (await fileExists(candidate)) {
+      return candidate;
+    }
+  }
+  return DEFAULT_OPTIONS.inputPath;
+}
+
+/**
  * Prompt user for configuration using inquirer
  */
 async function promptForConfig() {
@@ -112,12 +130,12 @@ async function promptForConfig() {
   const answers = await inquirer.prompt([
     {
       type: 'input',
-      name: 'svgPath',
-      message: 'Path to SVG file:',
-      default: DEFAULT_OPTIONS.svgPath,
+      name: 'inputPath',
+      message: 'Path to source SVG or PNG:',
+      default: await detectDefaultInput(),
       validate: async (input) => {
-        if (!input) return 'SVG path is required';
-        if (!input.endsWith('.svg')) return 'File must be an SVG (.svg)';
+        if (!input) return 'Input path is required';
+        if (!isSupportedInputFile(input)) return 'File must be an SVG (.svg) or PNG (.png)';
         const exists = await fileExists(input);
         if (!exists) return `File not found: ${input}`;
         return true;
@@ -203,12 +221,12 @@ async function main() {
       const { promises: fs } = await import('fs');
       const htmlContent = await fs.readFile(results.htmlFile, 'utf-8');
       console.log(htmlContent);
-      
+
       console.log('\n📱 Manifest JSON (also saved to manifest.json):');
       console.log('─'.repeat(60));
       const manifestContent = await fs.readFile(results.manifestFile, 'utf-8');
       console.log(manifestContent);
-      
+
       console.log('\n🪟 Browser Config XML (also saved to browserconfig.xml):');
       console.log('─'.repeat(60));
       const browserConfigContent = await fs.readFile(results.browserConfigFile, 'utf-8');
