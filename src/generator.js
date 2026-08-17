@@ -11,21 +11,23 @@ import {
   generateManifestJson,
   generateBrowserConfig,
   readPackageJson,
+  getInputFormat,
+  resolveInputPath,
 } from './utils.js';
 
 /**
- * Generate a single icon from SVG buffer
- * @param {Buffer} svgBuffer - SVG file buffer
+ * Generate a single icon from a source image buffer
+ * @param {Buffer} sourceBuffer - Source image buffer (SVG or PNG)
  * @param {number} size - Icon size in pixels
  * @param {string} outputPath - Output file path
  * @param {Object} options - Generation options
  * @returns {Promise<void>}
  */
-async function generateIcon(svgBuffer, size, outputPath, options) {
+async function generateIcon(sourceBuffer, size, outputPath, options) {
   const { quality, compressionLevel } = options;
   const needsSolidBackground = path.basename(outputPath).includes('icon-') && size >= 192;
 
-  await sharp(svgBuffer)
+  await sharp(sourceBuffer)
     .resize(size, size, {
       fit: 'contain',
       background: needsSolidBackground ? BACKGROUNDS.white : BACKGROUNDS.transparent,
@@ -39,19 +41,19 @@ async function generateIcon(svgBuffer, size, outputPath, options) {
 
 /**
  * Generate favicon PNG files
- * @param {Buffer} svgBuffer - SVG file buffer
+ * @param {Buffer} sourceBuffer - Source image buffer (SVG or PNG)
  * @param {string} outputDir - Output directory
  * @param {Array<number>} sizes - Favicon sizes to generate
  * @param {Object} options - Generation options
  * @returns {Promise<Array<string>>} Array of generated file paths
  */
-async function generateFaviconSizes(svgBuffer, outputDir, sizes, options) {
+async function generateFaviconSizes(sourceBuffer, outputDir, sizes, options) {
   const { quality, compressionLevel } = options;
   const generatedFiles = [];
 
   for (const size of sizes) {
     const outputPath = path.join(outputDir, `favicon-${size}.png`);
-    await sharp(svgBuffer)
+    await sharp(sourceBuffer)
       .resize(size, size, {
         fit: 'contain',
         background: BACKGROUNDS.transparent,
@@ -69,19 +71,20 @@ async function generateFaviconSizes(svgBuffer, outputDir, sizes, options) {
 }
 
 /**
- * Generate root favicon files (favicon.png, favicon.svg, favicon.ico)
- * @param {Buffer} svgBuffer - SVG file buffer
+ * Generate root favicon files (favicon.png, favicon.ico, and favicon.svg for SVG sources)
+ * @param {Buffer} sourceBuffer - Source image buffer (SVG or PNG)
  * @param {string} outputDir - Output directory
  * @param {Object} options - Generation options
+ * @param {'svg'|'png'} inputFormat - Format of the source buffer
  * @returns {Promise<Object>} Object with paths to generated files
  */
-async function generateRootFavicons(svgBuffer, outputDir, options) {
+async function generateRootFavicons(sourceBuffer, outputDir, options, inputFormat = 'svg') {
   const { quality, compressionLevel, faviconPngSize } = options;
   const generatedFiles = {};
 
   // Generate favicon.png
   const pngPath = path.join(outputDir, 'favicon.png');
-  await sharp(svgBuffer)
+  await sharp(sourceBuffer)
     .resize(faviconPngSize, faviconPngSize, {
       fit: 'contain',
       background: BACKGROUNDS.transparent,
@@ -93,17 +96,20 @@ async function generateRootFavicons(svgBuffer, outputDir, options) {
     .toFile(pngPath);
   generatedFiles.png = pngPath;
 
-  // Copy SVG as favicon.svg
-  const svgPath = path.join(outputDir, 'favicon.svg');
-  await fs.writeFile(svgPath, svgBuffer);
-  generatedFiles.svg = svgPath;
+  // Copy the source SVG as favicon.svg. A PNG source has no vector equivalent,
+  // so favicon.png above is the scalable-slot replacement.
+  if (inputFormat === 'svg') {
+    const svgPath = path.join(outputDir, 'favicon.svg');
+    await fs.writeFile(svgPath, sourceBuffer);
+    generatedFiles.svg = svgPath;
+  }
 
   // Generate favicon.ico (multi-size ICO with 16x16 and 32x32)
   const icoPath = path.join(outputDir, 'favicon.ico');
   const sizes = [16, 32];
   const pngBuffers = await Promise.all(
     sizes.map((size) =>
-      sharp(svgBuffer)
+      sharp(sourceBuffer)
         .resize(size, size, {
           fit: 'contain',
           background: BACKGROUNDS.transparent,
@@ -190,13 +196,54 @@ function createIcoBuffer(pngBuffers, sizes) {
 }
 
 /**
- * Generate PNG icons from SVG
+ * Warn when a raster source is smaller than the largest icon being generated
+ * @param {Buffer} sourceBuffer - Source PNG buffer
+ * @param {Object} options - Generation options
+ * @param {Logger} logger - Logger instance
+ * @returns {Promise<void>}
+ */
+async function warnIfUpscaling(sourceBuffer, options, logger) {
+  let metadata;
+  try {
+    metadata = await sharp(sourceBuffer).metadata();
+  } catch {
+    // Metadata is advisory only; sharp will surface real decode errors later.
+    return;
+  }
+
+  const sourceEdge = Math.min(metadata.width ?? 0, metadata.height ?? 0);
+  if (!sourceEdge) return;
+
+  const largest = Math.max(...options.iconSizes.map(({ size }) => size));
+  if (sourceEdge < largest) {
+    logger.warn(
+      `Source PNG is ${metadata.width}x${metadata.height}; icons up to ${largest}x${largest} ` +
+        `will be upscaled and may look soft. Supply a source of at least ${largest}x${largest}.`
+    );
+  }
+
+  if (metadata.width !== metadata.height) {
+    logger.warn(
+      `Source PNG is not square (${metadata.width}x${metadata.height}); icons will be padded to fit.`
+    );
+  }
+}
+
+/**
+ * Generate PNG icons from an SVG or PNG source
  * @param {Object} userOptions - User-provided options
  * @returns {Promise<Object>} Generation results
  */
 export async function generateIcons(userOptions = {}) {
-  // Merge user options with defaults
+  // Merge user options with defaults. A caller-supplied path — under either the
+  // canonical `inputPath` or the legacy `svgPath` alias — must beat the default
+  // `inputPath`, which would otherwise shadow an explicit `svgPath`.
   const options = { ...DEFAULT_OPTIONS, ...userOptions };
+  const suppliedPath = resolveInputPath(userOptions);
+  if (suppliedPath) {
+    options.inputPath = suppliedPath;
+  }
+
   const logger = new Logger(options.verbose);
 
   try {
@@ -205,16 +252,25 @@ export async function generateIcons(userOptions = {}) {
 
     logger.info('🎨 Starting icon generation...');
 
-    // Check if SVG file exists
-    const svgExists = await fileExists(options.svgPath);
-    if (!svgExists) {
-      throw new Error(`SVG file not found: ${options.svgPath}`);
+    const inputPath = resolveInputPath(options);
+    const inputFormat = getInputFormat(inputPath);
+
+    // Check if the source file exists
+    const inputExists = await fileExists(inputPath);
+    if (!inputExists) {
+      throw new Error(`Input file not found: ${inputPath}`);
     }
 
-    logger.log(`📖 Reading SVG from ${options.svgPath}`);
+    logger.log(`📖 Reading ${inputFormat.toUpperCase()} from ${inputPath}`);
 
-    // Read SVG file
-    const svgBuffer = await fs.readFile(options.svgPath);
+    // Read source file
+    const sourceBuffer = await fs.readFile(inputPath);
+
+    // A raster source can only be upscaled with quality loss — warn rather than
+    // silently emitting blurry large icons.
+    if (inputFormat === 'png') {
+      await warnIfUpscaling(sourceBuffer, options, logger);
+    }
 
     // Create output directory
     await ensureDirectory(options.outputDir);
@@ -224,13 +280,15 @@ export async function generateIcons(userOptions = {}) {
       icons: [],
       faviconSizes: [],
       outputDir: options.outputDir,
+      inputPath,
+      inputFormat,
     };
 
     // Generate each icon size
     for (const { size, name } of options.iconSizes) {
       const outputPath = path.join(options.outputDir, name);
 
-      await generateIcon(svgBuffer, size, outputPath, options);
+      await generateIcon(sourceBuffer, size, outputPath, options);
 
       results.icons.push({
         size,
@@ -244,7 +302,7 @@ export async function generateIcons(userOptions = {}) {
     // Generate favicon sizes if requested
     if (options.generateFavicon && options.faviconSizes?.length > 0) {
       const faviconFiles = await generateFaviconSizes(
-        svgBuffer,
+        sourceBuffer,
         options.outputDir,
         options.faviconSizes,
         options
@@ -261,21 +319,26 @@ export async function generateIcons(userOptions = {}) {
     // Generate root favicon files if requested
     if (options.generateRootFavicons) {
       const rootFavicons = await generateRootFavicons(
-        svgBuffer,
+        sourceBuffer,
         options.outputDir,
-        options
+        options,
+        inputFormat
       );
 
       results.rootFavicons = rootFavicons;
 
-      logger.success('Generated favicon.png, favicon.svg, and favicon.ico');
+      logger.success(
+        `Generated ${Object.keys(rootFavicons)
+          .map((key) => `favicon.${key}`)
+          .join(', ')}`
+      );
     }
 
     // Read package.json for app metadata
     const packageJson = await readPackageJson();
     const appName = packageJson?.name || 'Your App Name';
     const appDescription = packageJson?.description || 'Your app description';
-    
+
     if (packageJson) {
       logger.log(`📦 Using package.json: ${appName}`);
     } else {
@@ -322,15 +385,20 @@ export async function generateIcons(userOptions = {}) {
 
 /**
  * Generate icons with custom sizes
- * @param {string} svgPath - Path to SVG file
+ * @param {string} inputPath - Path to the source SVG or PNG file
  * @param {string} outputDir - Output directory
  * @param {Array<Object>} customSizes - Array of {size, name} objects
  * @param {Object} additionalOptions - Additional options
  * @returns {Promise<Object>} Generation results
  */
-export async function generateCustomIcons(svgPath, outputDir, customSizes, additionalOptions = {}) {
+export async function generateCustomIcons(
+  inputPath,
+  outputDir,
+  customSizes,
+  additionalOptions = {}
+) {
   return generateIcons({
-    svgPath,
+    inputPath,
     outputDir,
     iconSizes: customSizes,
     ...additionalOptions,

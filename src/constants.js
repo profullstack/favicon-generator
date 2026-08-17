@@ -22,10 +22,21 @@ export const DEFAULT_ICON_SIZES = [
 ];
 
 /**
+ * Input file extensions accepted as a source logo.
+ * SVG scales cleanly; PNG is supported for raster-only source art.
+ */
+export const SUPPORTED_INPUT_EXTENSIONS = ['.svg', '.png'];
+
+/**
+ * Default source file candidates, tried in order when no input path is given
+ */
+export const DEFAULT_INPUT_CANDIDATES = ['./favicon.svg', './favicon.png', './logo.png'];
+
+/**
  * Default configuration options
  */
 export const DEFAULT_OPTIONS = {
-  svgPath: './favicon.svg',
+  inputPath: './favicon.svg',
   outputDir: './icons',
   iconSizes: DEFAULT_ICON_SIZES,
   generateFavicon: true,
